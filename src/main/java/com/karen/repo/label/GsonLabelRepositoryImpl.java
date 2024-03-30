@@ -3,13 +3,10 @@ package com.karen.repo.label;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.karen.model.Label;
-import com.karen.model.Post;
 import com.karen.model.Status;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class GsonLabelRepositoryImpl implements LabelRepository {
     private final String fileName = "src/main/resources/labels.json";
@@ -17,7 +14,7 @@ public class GsonLabelRepositoryImpl implements LabelRepository {
 
     @Override
     public Label getById(String id) {
-        return getAll().stream()
+        return getLabelsFromFile().stream()
                 .filter(post -> post.getId().equals(id))
                 .findFirst()
                 .orElse(null);
@@ -25,64 +22,55 @@ public class GsonLabelRepositoryImpl implements LabelRepository {
 
     @Override
     public List<Label> getAll() {
-        try (Reader reader = new FileReader(fileName)) {
-            return gson.fromJson(reader, new TypeToken<List<Label>>() {}.getType());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    public boolean isIdExist(String id) {
-        List<Label> labels = getAll();
-        if (labels != null) {
-            return labels.stream().map(Label::getId).anyMatch(labelId -> labelId.equals(id));
-        }
-        return false;
+        return getLabelsFromFile();
     }
 
     @Override
-    public void save(Label entity) {
-        List<Label> labels = getAll();
-        if (labels == null) {
-            labels = new ArrayList<>();
-        }
-        if (!isIdExist(entity.getId())) {
+    public Label save(Label entity) {
+        List<Label> labels = getLabelsFromFile();
+
+        boolean isLabelExist = labels.stream()
+                .anyMatch(label -> label.getId().equals(entity.getId()));
+
+        if (!isLabelExist) {
             labels.add(entity);
-            writeToFile(labels);
+            sendLabelsToFile(labels);
         } else {
-            throw new IllegalArgumentException("Id already exist: " + entity.getId());
+            throw new IllegalArgumentException("Label with id " + entity.getId() + " already exists");
         }
+
+        return entity;
     }
 
     @Override
-    public void update(Label entity) {
-        List<Label> labels = getAll();
-        for (int i = 0; i < labels.size(); i++) {
-            if (labels.get(i).getId().equals(entity.getId())) {
-                labels.set(i, entity);
-                writeToFile(labels);
-                return;
-            }
-        }
+    public Label update(Label entity) {
+        List<Label> labels = getLabelsFromFile();
+        Label label = labels.stream().filter(l-> l.getId().equals(entity.getId()))
+                .findFirst().orElseThrow();
+        labels.set(Integer.parseInt(label.getId()), entity);
+        sendLabelsToFile(labels);
+        return entity;
     }
 
     @Override
     public void deleteById(String id) {
-        List<Label> labels = getAll();
-        for (Label label : labels) {
-            if (label.getId().equals(id)) {
-                label.setStatus(Status.DELETED);
-                break;
-            }
-            else {
-                throw new IllegalArgumentException("This id doesn't exit " + id);
-            }
-        }
-        writeToFile(labels);
+        List<Label> labels = getLabelsFromFile();
+        Label label = labels.stream()
+                .filter(l -> l.getId().equals(id))
+                .findFirst().orElseThrow();
+        label.setStatus(Status.DELETED);
+        sendLabelsToFile(labels);
     }
 
-    private void writeToFile(List<Label> labels) {
+    private List<Label> getLabelsFromFile() {
+        try(Reader reader = new FileReader(fileName)) {
+            return gson.fromJson(reader, new TypeToken<List<Label>>() {}.getType());
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private void sendLabelsToFile(List<Label> labels) {
         try (FileWriter writer = new FileWriter(fileName)) {
             gson.toJson(labels, writer);
         } catch (IOException e) {

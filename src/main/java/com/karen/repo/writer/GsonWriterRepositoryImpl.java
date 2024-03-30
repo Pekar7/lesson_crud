@@ -3,17 +3,14 @@ package com.karen.repo.writer;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.karen.model.Label;
-import com.karen.model.Post;
 import com.karen.model.Status;
 import com.karen.model.Writer;
-import com.karen.repo.writer.WriterRepository;
 
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class GsonWriterRepositoryImpl implements WriterRepository {
@@ -30,64 +27,53 @@ public class GsonWriterRepositoryImpl implements WriterRepository {
 
     @Override
     public List<Writer> getAll() {
-        try (Reader reader = new FileReader(fileName)) {
-            return gson.fromJson(reader, new TypeToken<List<Writer>>() {}.getType());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    public boolean isIdExist(String id) {
-        List<Writer> writers = getAll();
-        if (writers != null) {
-            return writers.stream().map(Writer::getId).anyMatch(labelId -> labelId.equals(id));
-        }
-        return false;
+        return getWritersFromFile();
     }
 
     @Override
-    public void save(Writer entity) {
-        List<Writer> writers = getAll();
-        if (writers == null) {
-            writers = new ArrayList<>();
-        }
-        if (!isIdExist(entity.getId())) {
+    public Writer save(Writer entity) {
+        List<Writer> writers = getWritersFromFile();
+        boolean isLabelExist = writers.stream()
+                .map(Writer::getId)
+                .anyMatch(id -> id.equals(entity.getId()));
+        if (!isLabelExist) {
             writers.add(entity);
-            writeToFile(writers);
+            sendWritersToFile(writers);
         } else {
-            throw new IllegalArgumentException("Id already exist: " + entity.getId());
+            throw new IllegalArgumentException("Writer with id " + entity.getId() + " already exist");
         }
+        return entity;
     }
 
     @Override
-    public void update(Writer entity) {
-        List<Writer> writers = getAll();
-        for (int i = 0; i < writers.size(); i++) {
-            if (writers.get(i).getId().equals(entity.getId())) {
-                writers.set(i, entity);
-                writeToFile(writers);
-                return;
-            }
-        }
+    public Writer update(Writer entity) {
+        List<Writer> writers = getWritersFromFile();
+        Writer Writer = writers.stream().filter(w-> w.getId().equals(entity.getId()))
+                .findFirst().orElseThrow();
+        writers.set(Integer.parseInt(Writer.getId()), entity);
+        sendWritersToFile(writers);
+        return entity;
     }
 
     @Override
     public void deleteById(String id) {
-        List<Writer> writers = getAll();
-        for (Writer writer : writers) {
-            if (writer.getId().equals(id)) {
-                writer.setStatus(Status.DELETED);
-                break;
-            }
-            else {
-                throw new IllegalArgumentException("This id doesn't exit " + id);
-            }
-        }
-        writeToFile(writers);
+        List<Writer> writers = getWritersFromFile();
+        Writer Writer = writers.stream()
+                .filter(w -> w.getId().equals(id))
+                .findFirst().orElseThrow();
+        Writer.setStatus(Status.DELETED);
+        sendWritersToFile(writers);
     }
 
-    private void writeToFile(List<Writer> writers) {
+    private List<Writer> getWritersFromFile() {
+        try(Reader reader = new FileReader(fileName)) {
+            return gson.fromJson(reader, new TypeToken<List<Writer>>() {}.getType());
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private void sendWritersToFile(List<Writer> writers) {
         try (FileWriter fileWriter = new FileWriter(fileName)) {
             gson.toJson(writers, fileWriter);
         } catch (IOException e) {

@@ -2,15 +2,15 @@ package com.karen.repo.post;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import com.karen.model.Label;
 import com.karen.model.Post;
 import com.karen.model.Status;
+import com.karen.model.Writer;
 
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class GsonPostRepositoryImpl implements PostRepository {
@@ -19,7 +19,7 @@ public class GsonPostRepositoryImpl implements PostRepository {
 
     @Override
     public Post getById(String id) {
-        return getAll().stream()
+        return getPostsFromFile().stream()
                 .filter(post -> post.getId().equals(id))
                 .findFirst()
                 .orElse(null);
@@ -27,64 +27,53 @@ public class GsonPostRepositoryImpl implements PostRepository {
 
     @Override
     public List<Post> getAll() {
-        try (Reader reader = new FileReader(fileName)) {
-            return gson.fromJson(reader, new TypeToken<List<Post>>() {}.getType());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    public boolean isIdExist(String id) {
-        List<Post> posts = getAll();
-        if (posts != null) {
-            return posts.stream().map(Post::getId).anyMatch(labelId -> labelId.equals(id));
-        }
-        return false;
+        return getPostsFromFile();
     }
 
     @Override
-    public void save(Post entity) {
-        List<Post> posts = getAll();
-        if (posts == null || !isIdExist(entity.getId())) {
-            if (posts == null) {
-                posts = new ArrayList<>();
-            }
+    public Post save(Post entity) {
+        List<Post> posts = getPostsFromFile();
+        boolean isLabelExist = posts.stream()
+                .map(Post::getId)
+                .anyMatch(id -> id.equals(entity.getId()));
+        if (!isLabelExist) {
             posts.add(entity);
-            writeToFile(posts);
+            sendPostsToFile(posts);
         } else {
-            throw new IllegalArgumentException("Id already exists: " + entity.getId());
+            throw new IllegalArgumentException("Post with id " + entity.getId() + " already exist");
         }
+        return entity;
     }
 
     @Override
-    public void update(Post entity) {
-        List<Post> posts = getAll();
-        for (int i = 0; i < posts.size(); i++) {
-            if (posts.get(i).getId().equals(entity.getId())) {
-                posts.set(i, entity);
-                writeToFile(posts);
-                return;
-            }
-        }
+    public Post update(Post entity) {
+        List<Post> posts = getPostsFromFile();
+        Post post = posts.stream().filter(p-> p.getId().equals(entity.getId()))
+                .findFirst().orElseThrow();
+        posts.set(Integer.parseInt(post.getId()), entity);
+        sendPostsToFile(posts);
+        return entity;
     }
 
     @Override
     public void deleteById(String id) {
-        List<Post> posts = getAll();
-        for (Post post : posts) {
-            if (post.getId().equals(id)) {
-                post.setStatus(Status.DELETED);
-                break;
-            }
-            else {
-                throw new IllegalArgumentException("This id doesn't exit " + id);
-            }
-        }
-        writeToFile(posts);
+        List<Post> posts = getPostsFromFile();
+        Post post = posts.stream()
+                .filter(p -> p.getId().equals(id))
+                .findFirst().orElseThrow();
+        post.setStatus(Status.DELETED);
+        sendPostsToFile(posts);
     }
 
-    private void writeToFile(List<Post> posts) {
+    private List<Post> getPostsFromFile() {
+        try(Reader reader = new FileReader(fileName)) {
+            return gson.fromJson(reader, new TypeToken<List<Writer>>() {}.getType());
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private void sendPostsToFile(List<Post> posts) {
         try (FileWriter writer = new FileWriter(fileName)) {
             gson.toJson(posts, writer);
         } catch (IOException e) {

@@ -25,19 +25,19 @@ public class PostController {
         postRepository.save(post);
     }
 
-    public Post getLabelById(String id) {
+    public Post getPostById(String id) {
         return postRepository.getById(id);
     }
 
-    public List<Post> getAllLabels() {
+    public List<Post> getAllPosts() {
         return postRepository.getAll();
     }
 
-    public void updateLabel(Post post) {
+    public void updatePost(Post post) {
         postRepository.update(post);
     }
 
-    public void deleteLabelById(String id) {
+    public void deletePostById(String id) {
         postRepository.deleteById(id);
     }
 }
